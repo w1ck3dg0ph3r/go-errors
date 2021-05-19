@@ -1,4 +1,4 @@
-# go-errors [![Build Status](https://travis-ci.org/w1ck3dg0ph3r/go-errors.svg?branch=master)](https://travis-ci.org/w1ck3dg0ph3r/go-errors) [![Go Report Card](https://goreportcard.com/badge/github.com/w1ck3dg0ph3r/go-errors)](https://goreportcard.com/report/github.com/w1ck3dg0ph3r/go-errors)
+# go-errors [![Build Status](https://travis-ci.com/w1ck3dg0ph3r/go-errors.svg?branch=master)](https://travis-ci.com/w1ck3dg0ph3r/go-errors) [![Go Report Card](https://goreportcard.com/badge/github.com/w1ck3dg0ph3r/go-errors)](https://goreportcard.com/report/github.com/w1ck3dg0ph3r/go-errors)
 
 Package errors provides error wrapping with stack trace and human-readable operations.
 
