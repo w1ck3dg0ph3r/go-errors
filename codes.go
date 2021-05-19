@@ -11,12 +11,14 @@ type ErrorKind int
 // user error codes relevant to your application.
 type ErrorCode int
 
+// Predefined error kinds
 const (
 	Client ErrorKind = 1 << iota
 	Server
 	Transient
 )
 
+// Predefined error codes
 const (
 	Unexpected ErrorCode = iota
 	Invalid
