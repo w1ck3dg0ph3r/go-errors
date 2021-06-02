@@ -8,5 +8,11 @@ matrix:
   allow_failures:
     - go: tip
 
-install:
-  - go get golang.org/x/lint/golint
+before_install:
+  - go get -t -v ./...
+
+script:
+  - go test -race -coverprofile=coverage.txt -covermode=atomic
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
