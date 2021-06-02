@@ -1,11 +1,10 @@
 package errors_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
-
-	"encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/w1ck3dg0ph3r/go-errors"
@@ -25,6 +24,12 @@ func TestConstructor(t *testing.T) {
 func TestKind(t *testing.T) {
 	var err error
 
+	err = fmt.Errorf("")
+	assert.Equal(t, errors.ErrorKind(0), errors.Kind(err))
+
+	err = errors.E("kindless")
+	assert.Equal(t, errors.ErrorKind(0), errors.Kind(err))
+
 	err = errors.E(errors.Client)
 	assert.Equal(t, errors.Kind(err), errors.Client)
 
@@ -32,6 +37,10 @@ func TestKind(t *testing.T) {
 	assert.True(t, errors.Is(err, errors.Server))
 	assert.True(t, errors.Is(err, errors.Transient))
 	assert.False(t, errors.Is(err, errors.Client))
+
+	err = errors.E(errors.Server)
+	err = errors.E("wrapped", err)
+	assert.Equal(t, errors.Server, errors.Kind(err))
 }
 
 func TestWrappedKind(t *testing.T) {
@@ -55,6 +64,10 @@ func TestErrorCode(t *testing.T) {
 
 	err = errors.E(errors.Client, errors.NotFound)
 	assert.Equal(t, errors.NotFound, errors.Code(err))
+
+	err = errors.E(errors.NotFound)
+	err = errors.E("wrapped", err)
+	assert.Equal(t, errors.NotFound, errors.Code(err))
 }
 
 func TestErrorTraits(t *testing.T) {
@@ -64,6 +77,11 @@ func TestErrorTraits(t *testing.T) {
 	assert.True(t, errors.Is(err, errors.Unexpected))
 	assert.False(t, errors.Is(err, errors.Server))
 	assert.False(t, errors.Is(err, errors.IO))
+
+	err = errors.E("msg")
+	assert.False(t, errors.Is(err, errors.Client))
+	assert.False(t, errors.Is(err, errors.Server))
+	assert.False(t, errors.Is(err, errors.NotFound))
 
 	err = errors.E(errors.Server, errors.IO)
 	assert.True(t, errors.IsAnyOf(err, errors.Server, errors.Transient))
@@ -96,17 +114,21 @@ func TestErrorMessage(t *testing.T) {
 
 	err = fmt.Errorf("msg1")
 	assert.Equal(t, "msg1", err.Error())
+	assert.Equal(t, "", errors.ClientMsg(err))
 
-	err = errors.E("msg1")
+	err = errors.E("msg1", errors.Client)
 	assert.Equal(t, "msg1", err.Error())
+	assert.Equal(t, "msg1", errors.ClientMsg(err))
 
 	err = fmt.Errorf("msg1")
 	err = errors.E("msg2", err)
 	assert.Equal(t, "msg2: msg1", err.Error())
+	assert.Equal(t, "", errors.ClientMsg(err))
 
-	err = errors.E("msg1")
+	err = errors.E("msg1", errors.Client)
 	err = errors.E("msg2", err)
 	assert.Equal(t, "msg2: msg1", err.Error())
+	assert.Equal(t, "msg1", errors.ClientMsg(err))
 }
 
 func TestErrorOps(t *testing.T) {
@@ -128,6 +150,61 @@ func TestErrorOps(t *testing.T) {
 	err = errors.E(errors.Op("op1"), "msg1")
 	err = errors.E(errors.Op("op2"), "msg2", err)
 	assert.Equal(t, []errors.Op{"op2", "op1"}, errors.Ops(err))
+}
+
+func TestErrorUnwrap(t *testing.T) {
+	err1 := fmt.Errorf("err1")
+	err2 := errors.E("err2")
+	cases := []struct {
+		err      error
+		expected error
+	}{
+		{nil, nil},
+		{err1, nil},
+		{err2, nil},
+		{errors.E(err1), err1},
+		{errors.E("err", err2), err2},
+	}
+	for _, tc := range cases {
+		res := errors.Unwrap(tc.err)
+		if res != tc.expected {
+			t.Errorf("expected %v got %v", tc.expected, res)
+		}
+	}
+}
+
+func TestErrorAs(t *testing.T) {
+	var err error
+	var ok bool
+
+	{
+		err = fmt.Errorf("err1")
+		var res1 error
+		var res2 *errors.Error
+
+		ok = errors.As(err, &res1)
+		assert.True(t, ok)
+		assert.Equal(t, "err1", res1.Error())
+
+		ok = errors.As(err, &res2)
+		assert.False(t, ok)
+		assert.Nil(t, res2)
+	}
+	{
+		err = someError{code: 1234}
+		err = errors.E(errors.Op("op1"), err, errors.Client)
+		var res1 *errors.Error
+		var res2 someError
+
+		ok = errors.As(err, &res1)
+		assert.True(t, ok)
+		assert.Equal(t, errors.Client, res1.Kind)
+		assert.Equal(t, errors.Op("op1"), res1.Op)
+
+		ok = errors.As(err, &res2)
+		assert.True(t, ok)
+		assert.Equal(t, 1234, res2.code)
+	}
 }
 
 func TestStackTrace(t *testing.T) {
@@ -182,4 +259,17 @@ func buffUser(id int, buff string) error {
 		return errors.E(op, fmt.Sprintf("unknown buff: "+buff), errors.Client, errors.Invalid)
 	}
 	return nil
+}
+
+type someError struct {
+	code  int
+	cause error
+}
+
+func (e someError) Unwrap() error {
+	return e.cause
+}
+
+func (e someError) Error() string {
+	return fmt.Sprintf("Error %d", e.code)
 }

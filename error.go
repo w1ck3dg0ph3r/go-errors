@@ -2,6 +2,7 @@
 package errors
 
 import (
+	stderr "errors"
 	"strings"
 )
 
@@ -68,6 +69,24 @@ func E(args ...interface{}) *Error {
 		e.Stack = callers()
 	}
 	return e
+}
+
+// Unwrap returns the result of calling the Unwrap method on err, if err's
+// type contains an Unwrap method returning error.
+// Otherwise, Unwrap returns nil.
+func Unwrap(err error) error {
+	u, ok := err.(interface {
+		Unwrap() error
+	})
+	if !ok {
+		return nil
+	}
+	return u.Unwrap()
+}
+
+// Unwrap unwraps an error
+func (e *Error) Unwrap() error {
+	return e.Cause
 }
 
 // Ops returns stack of error operations.
@@ -161,6 +180,12 @@ func IsAnyOf(err error, what ...interface{}) bool {
 		}
 	}
 	return false
+}
+
+// As finds the first error in err's chain that matches target, and if so, sets
+// target to that error value and returns true. Otherwise, it returns false.
+func As(err error, target interface{}) bool {
+	return stderr.As(err, target)
 }
 
 // ClientMsg returns error message suitable to display to the client.
