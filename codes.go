@@ -8,7 +8,7 @@ type ErrorKind int
 // ErrorCode is an error's type code
 //
 // This package defines some common error codes, but generally you should
-// user error codes relevant to your application.
+// use error codes relevant to your application.
 type ErrorCode int
 
 // Predefined error kinds
