@@ -2,6 +2,14 @@
 
 Package errors provides error wrapping with stack trace and human-readable operations.
 
+### Features
+
+- Stacked human-readable operations associated with errors
+- Customizable error kinds and codes with checking
+- Error list aka multi-error
+- Error group to aggregate errors from goroutines in a list
+- Stack trace capture
+
 ## Install
 
 ```
