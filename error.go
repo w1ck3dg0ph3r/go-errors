@@ -3,6 +3,7 @@ package errors
 
 import (
 	stderr "errors"
+	"reflect"
 	"strings"
 )
 
@@ -19,22 +20,6 @@ type Error struct {
 	Stack StackTrace
 }
 
-// Error return human readable representation of an error.
-func (e *Error) Error() string {
-	sb := &strings.Builder{}
-	if e.Msg != "" {
-		sb.WriteString(e.Msg)
-	}
-	if e.Cause != nil {
-		causeMsg := e.Cause.Error()
-		if e.Msg != "" && causeMsg != "" {
-			sb.WriteString(": ")
-		}
-		sb.WriteString(causeMsg)
-	}
-	return sb.String()
-}
-
 // E creates or wraps an error.
 // Arguments could be an Op, ErrorKind, ErrorCode, string message, or an error to wrap.
 func E(args ...interface{}) *Error {
@@ -43,20 +28,32 @@ func E(args ...interface{}) *Error {
 	for _, a := range args {
 		switch a := a.(type) {
 		case Op:
+			if e.Op != "" {
+				panic("bad call to E: multiple ops")
+			}
 			e.Op = a
 		case ErrorKind:
 			e.Kind |= a
 		case ErrorCode:
+			if e.Code != 0 {
+				panic("bad call to E: multiple codes")
+			}
 			e.Code = a
 		case string:
+			if e.Msg != "" {
+				panic("bad call to E: multiple messages")
+			}
 			e.Msg = a
 		case error:
+			if e.Cause != nil {
+				panic("bad call to E: multiple causes")
+			}
 			e.Cause = a
 			wrapping = true
 		case nil:
 			return nil
 		default:
-			panic("bad call to E")
+			panic("bad call to E: argument of type " + reflect.TypeOf(a).String())
 		}
 	}
 	shouldTrace := true
@@ -84,18 +81,16 @@ func Unwrap(err error) error {
 	return u.Unwrap()
 }
 
-// Unwrap unwraps an error
-func (e *Error) Unwrap() error {
-	return e.Cause
-}
-
 // Ops returns stack of error operations.
 func Ops(err error) []Op {
 	e, ok := err.(*Error)
 	if !ok {
 		return []Op{}
 	}
-	res := []Op{e.Op}
+	var res []Op
+	if e.Op != "" {
+		res = append(res, e.Op)
+	}
 	cause, ok := e.Cause.(*Error)
 	if !ok {
 		return res
@@ -147,33 +142,39 @@ func Code(err error) ErrorCode {
 	return Unexpected
 }
 
-// Is checks if err is of given kind or has given code
+// Is checks if err is of given kind, has given code or matches given error what.
 func Is(err error, what interface{}) bool {
-	e, ok := err.(*Error)
-	if !ok {
-		if code, ok := what.(ErrorCode); ok {
-			return code == Unexpected
+	if err == nil {
+		return false
+	}
+	if err, ok := err.(*Error); ok {
+		return err.Is(what)
+	}
+	if list, ok := err.(List); ok {
+		for i := range list {
+			if Is(list[i], what) {
+				return true
+			}
 		}
 		return false
 	}
-	switch what := what.(type) {
-	case ErrorKind:
-		if e.Kind != 0 {
-			return e.Kind&what > 0
-		}
-	case ErrorCode:
-		if e.Code != 0 {
-			return e.Code == what
-		}
+	if _, ok := what.(ErrorKind); ok {
+		return false
 	}
-	if e.Cause != nil {
-		return Is(e.Cause, what)
+	if code, ok := what.(ErrorCode); ok {
+		return code == Unexpected
 	}
-	return false
+	if target, ok := what.(error); ok {
+		return stderr.Is(err, target)
+	}
+	panic("what must be ErrorKind, ErrorCode or error")
 }
 
-// IsAnyOf checks if err is any of the given kinds or has any og the given codes
+// IsAnyOf checks if err is any of the given kinds or has any of the given codes
 func IsAnyOf(err error, what ...interface{}) bool {
+	if err == nil {
+		return false
+	}
 	for i := range what {
 		if Is(err, what[i]) {
 			return true
@@ -184,7 +185,18 @@ func IsAnyOf(err error, what ...interface{}) bool {
 
 // As finds the first error in err's chain that matches target, and if so, sets
 // target to that error value and returns true. Otherwise, it returns false.
+// If err is an error list, it does so for every error in the list.
 func As(err error, target interface{}) bool {
+	if err == nil {
+		return false
+	}
+	if list, ok := err.(List); ok {
+		for i := range list {
+			if As(list[i], target) {
+				return true
+			}
+		}
+	}
 	return stderr.As(err, target)
 }
 
@@ -201,4 +213,52 @@ func ClientMsg(err error) string {
 		return ClientMsg(e.Cause)
 	}
 	return ""
+}
+
+// Error return human readable representation of an error.
+func (e *Error) Error() string {
+	sb := &strings.Builder{}
+	if e.Msg != "" {
+		sb.WriteString(e.Msg)
+	}
+	if e.Cause != nil {
+		causeMsg := e.Cause.Error()
+		if e.Msg != "" && causeMsg != "" {
+			sb.WriteString(": ")
+		}
+		sb.WriteString(causeMsg)
+	}
+	return sb.String()
+}
+
+// Unwrap unwraps an error
+func (e *Error) Unwrap() error {
+	return e.Cause
+}
+
+// Is checks if e is of given kind, has given code or matches given error what.
+func (e *Error) Is(what interface{}) bool {
+	if what, ok := what.(error); ok {
+		return stderr.Is(e, what)
+	}
+	switch what := what.(type) {
+	case ErrorKind:
+		if e.Kind != 0 {
+			if e.Kind&what > 0 {
+				return true
+			}
+		}
+	case ErrorCode:
+		if e.Code != 0 {
+			if e.Code == what {
+				return true
+			}
+		}
+	default:
+		panic("what must be ErrorKind, ErrorCode or error")
+	}
+	if e.Cause != nil {
+		return Is(e.Cause, what)
+	}
+	return false
 }
