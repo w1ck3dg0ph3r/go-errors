@@ -37,3 +37,9 @@ func MyFunc() error {
     return nil
 }
 ```
+
+## [Changelog](changelog.md)
+
+## Contributing
+
+Any contributions are welcome in a form of issues and pull requests.
