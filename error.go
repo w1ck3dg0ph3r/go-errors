@@ -244,15 +244,11 @@ func (e *Error) Is(what interface{}) bool {
 	switch what := what.(type) {
 	case ErrorKind:
 		if e.Kind != 0 {
-			if e.Kind&what > 0 {
-				return true
-			}
+			return e.Kind&what > 0
 		}
 	case ErrorCode:
 		if e.Code != 0 {
-			if e.Code == what {
-				return true
-			}
+			return e.Code == what
 		}
 	default:
 		panic("what must be ErrorKind, ErrorCode or error")
